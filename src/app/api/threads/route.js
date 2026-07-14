@@ -12,24 +12,24 @@ function isFromMe(fromHeader, myEmail) {
   return fromHeader.toLowerCase().includes(myEmail.toLowerCase());
 }
 
+function extractEmail(header) {
+  const match = header.match(/<(.+)>/);
+  return (match ? match[1] : header).toLowerCase().trim();
+}
+
 export async function GET() {
   const session = await auth();
-
   if (!session || !session.accessToken) {
     return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
   }
-
   const myEmail = session.user.email;
 
   const listRes = await fetch(
-    "https://gmail.googleapis.com/gmail/v1/users/me/threads?maxResults=15",
+    "https://gmail.googleapis.com/gmail/v1/users/me/threads?maxResults=25",
     { headers: { Authorization: `Bearer ${session.accessToken}` } },
   );
   const listData = await listRes.json();
-
-  if (!listData.threads) {
-    return NextResponse.json({ threads: [] });
-  }
+  if (!listData.threads) return NextResponse.json({ contacts: [] });
 
   const detailed = await Promise.all(
     listData.threads.map(async (t) => {
@@ -42,7 +42,6 @@ export async function GET() {
       const lastMessage = messages[messages.length - 1];
       const lastHeaders = lastMessage?.payload?.headers || [];
 
-      // Find the "other party" — the contact name we want shown, regardless of who sent last
       let contactHeader = null;
       for (let i = messages.length - 1; i >= 0; i--) {
         const headers = messages[i].payload?.headers || [];
@@ -52,22 +51,47 @@ export async function GET() {
           break;
         }
       }
-      // Fallback: every message in the thread was sent by me (e.g. a note to self) — use "To" instead
       if (!contactHeader) {
         contactHeader =
           getHeader(lastHeaders, "To") || getHeader(lastHeaders, "From");
       }
 
       return {
-        id: t.id,
+        threadId: t.id,
         snippet: lastMessage?.snippet || t.snippet,
         from: contactHeader,
         subject: getHeader(lastHeaders, "Subject"),
         date: getHeader(lastHeaders, "Date"),
-        messageCount: messages.length || 1,
+        labels: lastMessage?.labelIds || [],
       };
     }),
   );
 
-  return NextResponse.json({ threads: detailed });
+  // Group threads by contact email — one "chat" per person, not per subject line
+  const byContact = new Map();
+  for (const t of detailed) {
+    const email = extractEmail(t.from);
+    const existing = byContact.get(email);
+    if (!existing || new Date(t.date) > new Date(existing.date)) {
+      byContact.set(email, {
+        email,
+        from: t.from,
+        subject: t.subject,
+        snippet: t.snippet,
+        date: t.date,
+        labels: t.labels,
+        threadIds: existing
+          ? [...existing.threadIds, t.threadId]
+          : [t.threadId],
+      });
+    } else {
+      existing.threadIds.push(t.threadId);
+    }
+  }
+
+  const contacts = Array.from(byContact.values()).sort(
+    (a, b) => new Date(b.date) - new Date(a.date),
+  );
+
+  return NextResponse.json({ contacts });
 }

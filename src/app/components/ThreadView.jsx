@@ -7,40 +7,78 @@ function parseFromName(fromHeader) {
   return match ? match[1].replace(/"/g, "") : fromHeader;
 }
 
+function parseFromEmail(fromHeader) {
+  const match = fromHeader.match(/<(.+)>/);
+  return match ? match[1] : fromHeader;
+}
+
 function isMe(fromHeader, myEmail) {
   return fromHeader.toLowerCase().includes(myEmail.toLowerCase());
 }
 
-export default function ThreadView({ threadId, myEmail, onMessageSent }) {
+function findContactHeader(messages, myEmail) {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    if (!isMe(messages[i].from, myEmail)) {
+      return messages[i].from;
+    }
+  }
+  return messages[0]?.from || "";
+}
+
+function getInitial(name) {
+  return name?.trim()?.[0]?.toUpperCase() || "?";
+}
+
+function getAvatarColor(name) {
+  const colors = [
+    "bg-rose-600",
+    "bg-orange-600",
+    "bg-amber-600",
+    "bg-emerald-600",
+    "bg-teal-600",
+    "bg-sky-600",
+    "bg-indigo-600",
+    "bg-violet-600",
+    "bg-pink-600",
+  ];
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) {
+    hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  return colors[Math.abs(hash) % colors.length];
+}
+
+export default function ThreadView({ contact, myEmail, onMessageSent }) {
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(true);
   const [draft, setDraft] = useState("");
 
   useEffect(() => {
-    if (!threadId) return;
-
+    if (!contact) return;
     async function loadMessages() {
       try {
-        const res = await fetch(`/api/threads/${threadId}`);
+        const res = await fetch("/api/contact/messages", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ threadIds: contact.threadIds }),
+        });
         if (!res.ok) return;
         const data = await res.json();
-        // Keep any optimistic "sending" bubbles that haven't resolved yet
         setMessages((prev) => {
           const stillSending = prev.filter((m) => m.status === "sending");
           return [...(data.messages || []), ...stillSending];
         });
       } catch (err) {
-        console.warn("Poll failed, will retry:", err.message);
+        console.warn("Poll failed:", err.message);
       } finally {
         setLoading(false);
       }
     }
-
     setLoading(true);
     loadMessages();
     const interval = setInterval(loadMessages, 8000);
     return () => clearInterval(interval);
-  }, [threadId]);
+  }, [contact]);
 
   async function handleSend() {
     const text = draft.trim();
@@ -52,14 +90,14 @@ export default function ThreadView({ threadId, myEmail, onMessageSent }) {
       from: myEmail,
       body: text,
       date: new Date().toISOString(),
-      status: "sending", // sending -> sent -> failed
+      status: "sending",
     };
 
     setMessages((prev) => [...prev, optimisticMessage]);
     setDraft("");
 
     try {
-      const res = await fetch(`/api/threads/${threadId}/reply`, {
+      const res = await fetch(`/api/threads/${contact}/reply`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text }),
@@ -67,13 +105,11 @@ export default function ThreadView({ threadId, myEmail, onMessageSent }) {
 
       if (!res.ok) throw new Error("send failed");
 
-      // Mark the optimistic bubble as sent
       setMessages((prev) =>
         prev.map((m) => (m.id === tempId ? { ...m, status: "sent" } : m)),
       );
 
-      // Refetch real thread data in the background to reconcile
-      const updated = await fetch(`/api/threads/${threadId}`).then((r) =>
+      const updated = await fetch(`/api/threads/${contact}`).then((r) =>
         r.json(),
       );
       setMessages((prev) => {
@@ -92,7 +128,7 @@ export default function ThreadView({ threadId, myEmail, onMessageSent }) {
     }
   }
 
-  if (!threadId) {
+  if (!contact) {
     return (
       <div className="h-full flex items-center justify-center text-gray-500">
         Select a chat to view messages
@@ -108,12 +144,30 @@ export default function ThreadView({ threadId, myEmail, onMessageSent }) {
     );
   }
 
+  const contactHeader = messages.length
+    ? findContactHeader(messages, myEmail)
+    : "";
+  const contactName = parseFromName(contactHeader);
+  const contactEmail = parseFromEmail(contactHeader);
+
   return (
     <div className="h-full flex flex-col">
-      <div className="h-16 shrink-0 px-4 flex items-center border-b border-gray-800">
-        <span className="font-semibold">
-          {messages[0] ? parseFromName(messages[0].from) : ""}
-        </span>
+      <div className="h-16 shrink-0 px-4 flex items-center gap-3 border-b border-gray-800">
+        <div
+          className={`w-9 h-9 rounded-full shrink-0 flex items-center justify-center text-sm font-semibold text-white ${getAvatarColor(
+            contactName,
+          )}`}
+        >
+          {getInitial(contactName)}
+        </div>
+        <div className="min-w-0 flex flex-col justify-center">
+          <span className="font-semibold text-sm truncate leading-tight">
+            {contactName}
+          </span>
+          <span className="text-xs text-gray-500 truncate leading-tight">
+            {contactEmail}
+          </span>
+        </div>
       </div>
 
       <div className="flex-1 min-h-0 overflow-y-auto">
@@ -123,7 +177,7 @@ export default function ThreadView({ threadId, myEmail, onMessageSent }) {
             return (
               <div
                 key={msg.id}
-                className={`max-w-[70%] px-4 py-2 rounded-2xl whitespace-pre-wrap break-words text-sm ${
+                className={`max-w-[70%] px-4 py-2 rounded-2xl whitespace-pre-wrap wrap-break-word text-sm ${
                   fromMe
                     ? "self-end ml-auto bg-blue-600 text-white"
                     : "self-start bg-gray-800 text-white"

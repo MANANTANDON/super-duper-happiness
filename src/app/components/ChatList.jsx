@@ -13,11 +13,6 @@ function parseFromName(fromHeader) {
   return match ? match[1].replace(/"/g, "") : fromHeader;
 }
 
-function parseFromEmail(fromHeader) {
-  const match = fromHeader.match(/<(.+)>/);
-  return match ? match[1].toLowerCase() : fromHeader.toLowerCase();
-}
-
 function formatDate(dateStr) {
   const d = new Date(dateStr);
   const now = new Date();
@@ -28,25 +23,31 @@ function formatDate(dateStr) {
   return d.toLocaleDateString([], { month: "short", day: "numeric" });
 }
 
-// Heuristic: is this sender likely a newsletter/automated mail, not a real person?
-function isLikelyNewsletter(fromHeader) {
-  const email = parseFromEmail(fromHeader);
-  const patterns = [
-    "noreply",
-    "no-reply",
-    "donotreply",
-    "do-not-reply",
-    "notifications",
-    "notification",
-    "newsletter",
-    "digest",
-    "alerts",
-    "jobalert",
-    "updates",
-    "marketing",
-    "mailer",
-  ];
-  return patterns.some((p) => email.includes(p));
+const TABS = [
+  { key: "primary", label: "Chats" },
+  { key: "updates", label: "Alerts" },
+  { key: "promotions", label: "Promotions" },
+  { key: "all", label: "All" },
+];
+
+function matchesTab(thread, tab) {
+  const labels = thread.labels || [];
+  if (tab === "all") return true;
+  if (tab === "promotions") return labels.includes("CATEGORY_PROMOTIONS");
+  if (tab === "updates") {
+    return (
+      labels.includes("CATEGORY_UPDATES") ||
+      labels.includes("CATEGORY_FORUMS") ||
+      labels.includes("CATEGORY_SOCIAL")
+    );
+  }
+  // "primary" = anything NOT in promotions/updates/social/forums
+  return (
+    !labels.includes("CATEGORY_PROMOTIONS") &&
+    !labels.includes("CATEGORY_UPDATES") &&
+    !labels.includes("CATEGORY_FORUMS") &&
+    !labels.includes("CATEGORY_SOCIAL")
+  );
 }
 
 const ChatList = forwardRef(function ChatList(
@@ -56,14 +57,14 @@ const ChatList = forwardRef(function ChatList(
   const [threads, setThreads] = useState([]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
-  const [hideNewsletters, setHideNewsletters] = useState(false);
+  const [activeTab, setActiveTab] = useState("primary");
 
   const fetchThreads = useCallback(async () => {
     try {
       const res = await fetch("/api/threads");
       if (!res.ok) return;
       const data = await res.json();
-      setThreads(data.threads || []);
+      setThreads(data.contacts || []);
     } catch (err) {
       console.warn("Poll failed, will retry:", err.message);
     } finally {
@@ -82,7 +83,7 @@ const ChatList = forwardRef(function ChatList(
   }, [fetchThreads]);
 
   const filtered = threads.filter((thread) => {
-    if (hideNewsletters && isLikelyNewsletter(thread.from)) return false;
+    if (!matchesTab(thread, activeTab)) return false;
     if (query.trim()) {
       const q = query.toLowerCase();
       const name = parseFromName(thread.from).toLowerCase();
@@ -108,14 +109,21 @@ const ChatList = forwardRef(function ChatList(
           placeholder="Search chats..."
           className="bg-gray-900 rounded-full px-4 py-2 text-sm outline-none"
         />
-        <label className="flex items-center gap-2 text-xs text-gray-400 px-1">
-          <input
-            type="checkbox"
-            checked={hideNewsletters}
-            onChange={(e) => setHideNewsletters(e.target.checked)}
-          />
-          Hide newsletters & alerts
-        </label>
+        <div className="flex gap-1">
+          {TABS.map((tab) => (
+            <button
+              key={tab.key}
+              onClick={() => setActiveTab(tab.key)}
+              className={`px-3 py-1 rounded-full text-xs font-medium transition cursor-pointer ${
+                activeTab === tab.key
+                  ? "bg-blue-600 text-white"
+                  : "bg-gray-900 text-gray-400 hover:bg-gray-800"
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       <div className="flex-1 overflow-y-auto">
@@ -124,11 +132,9 @@ const ChatList = forwardRef(function ChatList(
         )}
         {filtered.map((thread) => (
           <button
-            key={thread.id}
-            onClick={() => onSelectThread(thread.id)}
-            className={`flex flex-col items-start text-left px-4 py-3 border-b border-gray-800 hover:bg-gray-900 transition w-full ${
-              selectedId === thread.id ? "bg-gray-900" : ""
-            }`}
+            key={thread.email}
+            onClick={() => onSelectThread(thread)}
+            className={`flex flex-col cursor-pointer items-start text-left px-4 py-3 border-b border-gray-800 hover:bg-gray-900 transition w-full ${selectedId === thread.email ? "bg-gray-900" : ""}`}
           >
             <div className="flex justify-between w-full">
               <span className="font-medium text-white truncate max-w-[70%]">
