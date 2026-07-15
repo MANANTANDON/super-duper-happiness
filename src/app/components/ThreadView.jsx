@@ -1,60 +1,30 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Avatar } from "./Avatar";
 
 function parseFromName(fromHeader) {
   const match = fromHeader.match(/^(.*?)\s*<.*>$/);
   return match ? match[1].replace(/"/g, "") : fromHeader;
 }
 
-function parseFromEmail(fromHeader) {
-  const match = fromHeader.match(/<(.+)>/);
-  return match ? match[1] : fromHeader;
-}
-
 function isMe(fromHeader, myEmail) {
   return fromHeader.toLowerCase().includes(myEmail.toLowerCase());
 }
 
-function findContactHeader(messages, myEmail) {
-  for (let i = messages.length - 1; i >= 0; i--) {
-    if (!isMe(messages[i].from, myEmail)) {
-      return messages[i].from;
-    }
-  }
-  return messages[0]?.from || "";
-}
-
-function getInitial(name) {
-  return name?.trim()?.[0]?.toUpperCase() || "?";
-}
-
-function getAvatarColor(name) {
-  const colors = [
-    "bg-rose-600",
-    "bg-orange-600",
-    "bg-amber-600",
-    "bg-emerald-600",
-    "bg-teal-600",
-    "bg-sky-600",
-    "bg-indigo-600",
-    "bg-violet-600",
-    "bg-pink-600",
-  ];
-  let hash = 0;
-  for (let i = 0; i < name.length; i++) {
-    hash = name.charCodeAt(i) + ((hash << 5) - hash);
-  }
-  return colors[Math.abs(hash) % colors.length];
-}
-
-export default function ThreadView({ contact, myEmail, onMessageSent }) {
+export default function ThreadView({
+  contact,
+  myEmail,
+  onMessageSent,
+  onBack,
+}) {
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(true);
   const [draft, setDraft] = useState("");
 
   useEffect(() => {
     if (!contact) return;
+
     async function loadMessages() {
       try {
         const res = await fetch("/api/contact/messages", {
@@ -74,8 +44,17 @@ export default function ThreadView({ contact, myEmail, onMessageSent }) {
         setLoading(false);
       }
     }
+
     setLoading(true);
     loadMessages();
+
+    // Tell Gmail to actually mark these threads as read (not just locally)
+    fetch("/api/contact/markRead", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ threadIds: contact.threadIds }),
+    }).catch(() => {});
+
     const interval = setInterval(loadMessages, 8000);
     return () => clearInterval(interval);
   }, [contact]);
@@ -83,6 +62,8 @@ export default function ThreadView({ contact, myEmail, onMessageSent }) {
   async function handleSend() {
     const text = draft.trim();
     if (!text) return;
+
+    const activeThreadId = contact.threadIds[contact.threadIds.length - 1];
 
     const tempId = `temp-${Date.now()}`;
     const optimisticMessage = {
@@ -97,7 +78,7 @@ export default function ThreadView({ contact, myEmail, onMessageSent }) {
     setDraft("");
 
     try {
-      const res = await fetch(`/api/threads/${contact}/reply`, {
+      const res = await fetch(`/api/threads/${activeThreadId}/reply`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text }),
@@ -109,9 +90,12 @@ export default function ThreadView({ contact, myEmail, onMessageSent }) {
         prev.map((m) => (m.id === tempId ? { ...m, status: "sent" } : m)),
       );
 
-      const updated = await fetch(`/api/threads/${contact}`).then((r) =>
-        r.json(),
-      );
+      const updated = await fetch("/api/contact/messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ threadIds: contact.threadIds }),
+      }).then((r) => r.json());
+
       setMessages((prev) => {
         const real = updated.messages || [];
         const stillPending = prev.filter(
@@ -144,22 +128,17 @@ export default function ThreadView({ contact, myEmail, onMessageSent }) {
     );
   }
 
-  const contactHeader = messages.length
-    ? findContactHeader(messages, myEmail)
-    : "";
-  const contactName = parseFromName(contactHeader);
-  const contactEmail = parseFromEmail(contactHeader);
+  const contactName = parseFromName(contact.from);
+  const contactEmail = contact.email;
 
   return (
-    <div className="h-full flex flex-col">
+    <div className="h-full w-full flex flex-col min-w-0 max-w-full overflow-hidden">
       <div className="h-16 shrink-0 px-4 flex items-center gap-3 border-b border-gray-800">
-        <div
-          className={`w-9 h-9 rounded-full shrink-0 flex items-center justify-center text-sm font-semibold text-white ${getAvatarColor(
-            contactName,
-          )}`}
-        >
-          {getInitial(contactName)}
-        </div>
+        <button onClick={onBack} className="md:hidden text-gray-400 shrink-0">
+          ←
+        </button>
+        <Avatar email={contactEmail} name={contactName} size={36} />
+
         <div className="min-w-0 flex flex-col justify-center">
           <span className="font-semibold text-sm truncate leading-tight">
             {contactName}
@@ -170,18 +149,19 @@ export default function ThreadView({ contact, myEmail, onMessageSent }) {
         </div>
       </div>
 
-      <div className="flex-1 min-h-0 overflow-y-auto">
-        <div className="p-4 flex flex-col gap-3">
+      <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
+        <div className="p-4 flex flex-col gap-3 w-full">
           {messages.map((msg) => {
             const fromMe = isMe(msg.from, myEmail);
             return (
               <div
                 key={msg.id}
-                className={`max-w-[70%] px-4 py-2 rounded-2xl whitespace-pre-wrap wrap-break-word text-sm ${
+                className={`max-w-[85%] sm:max-w-[70%] px-4 py-2 rounded-2xl whitespace-pre-wrap wrap-break-word text-sm ${
                   fromMe
                     ? "self-end ml-auto bg-blue-600 text-white"
                     : "self-start bg-gray-800 text-white"
                 }`}
+                style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}
               >
                 <div>{msg.body || "(no plain text content)"}</div>
                 {fromMe && msg.status && (
@@ -203,11 +183,11 @@ export default function ThreadView({ contact, myEmail, onMessageSent }) {
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && handleSend()}
           placeholder="Type a message..."
-          className="flex-1 bg-gray-900 rounded-full px-4 py-2 text-sm outline-none"
+          className="flex-1 min-w-0 bg-gray-900 rounded-full px-4 py-2 text-sm outline-none"
         />
         <button
           onClick={handleSend}
-          className="bg-blue-600 rounded-full px-5 py-2 text-sm font-medium"
+          className="bg-blue-600 rounded-full px-5 py-2 text-sm font-medium shrink-0"
         >
           Send
         </button>

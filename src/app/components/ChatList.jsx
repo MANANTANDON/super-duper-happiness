@@ -7,6 +7,7 @@ import {
   forwardRef,
   useImperativeHandle,
 } from "react";
+import { Avatar } from "./Avatar";
 
 function parseFromName(fromHeader) {
   const match = fromHeader.match(/^(.*?)\s*<.*>$/);
@@ -41,7 +42,6 @@ function matchesTab(thread, tab) {
       labels.includes("CATEGORY_SOCIAL")
     );
   }
-  // "primary" = anything NOT in promotions/updates/social/forums
   return (
     !labels.includes("CATEGORY_PROMOTIONS") &&
     !labels.includes("CATEGORY_UPDATES") &&
@@ -58,19 +58,26 @@ const ChatList = forwardRef(function ChatList(
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
   const [activeTab, setActiveTab] = useState("primary");
+  // Emails we've locally marked read, so a poll landing mid-flight can't flash the dot back
+  const [locallyRead, setLocallyRead] = useState(() => new Set());
 
   const fetchThreads = useCallback(async () => {
     try {
       const res = await fetch("/api/threads");
       if (!res.ok) return;
       const data = await res.json();
-      setThreads(data.contacts || []);
+      const contacts = data.contacts || [];
+      setThreads(
+        contacts.map((c) =>
+          locallyRead.has(c.email) ? { ...c, unread: false } : c,
+        ),
+      );
     } catch (err) {
       console.warn("Poll failed, will retry:", err.message);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [locallyRead]);
 
   useImperativeHandle(ref, () => ({
     refresh: fetchThreads,
@@ -81,6 +88,14 @@ const ChatList = forwardRef(function ChatList(
     const interval = setInterval(fetchThreads, 15000);
     return () => clearInterval(interval);
   }, [fetchThreads]);
+
+  function handleSelect(thread) {
+    setLocallyRead((prev) => new Set(prev).add(thread.email));
+    setThreads((prev) =>
+      prev.map((t) => (t.email === thread.email ? { ...t, unread: false } : t)),
+    );
+    onSelectThread(thread);
+  }
 
   const filtered = threads.filter((thread) => {
     if (!matchesTab(thread, activeTab)) return false;
@@ -109,12 +124,12 @@ const ChatList = forwardRef(function ChatList(
           placeholder="Search chats..."
           className="bg-gray-900 rounded-full px-4 py-2 text-sm outline-none"
         />
-        <div className="flex gap-1">
+        <div className="flex gap-1 overflow-x-auto">
           {TABS.map((tab) => (
             <button
               key={tab.key}
               onClick={() => setActiveTab(tab.key)}
-              className={`px-3 py-1 rounded-full text-xs font-medium transition cursor-pointer ${
+              className={`px-3 py-1 rounded-full text-xs font-medium transition shrink-0 ${
                 activeTab === tab.key
                   ? "bg-blue-600 text-white"
                   : "bg-gray-900 text-gray-400 hover:bg-gray-800"
@@ -133,23 +148,44 @@ const ChatList = forwardRef(function ChatList(
         {filtered.map((thread) => (
           <button
             key={thread.email}
-            onClick={() => onSelectThread(thread)}
-            className={`flex flex-col cursor-pointer items-start text-left px-4 py-3 border-b border-gray-800 hover:bg-gray-900 transition w-full ${selectedId === thread.email ? "bg-gray-900" : ""}`}
+            onClick={() => handleSelect(thread)}
+            className={`flex items-center gap-3 cursor-pointer text-left px-4 py-3 border-b border-gray-800 hover:bg-gray-900 transition w-full ${
+              selectedId === thread.email ? "bg-gray-900" : ""
+            }`}
           >
-            <div className="flex justify-between w-full">
-              <span className="font-medium text-white truncate max-w-[70%]">
-                {parseFromName(thread.from)}
-              </span>
-              <span className="text-xs text-gray-500 shrink-0">
-                {formatDate(thread.date)}
+            <Avatar
+              email={thread.email}
+              name={parseFromName(thread.from)}
+              size={40}
+            />
+
+            <div className="flex flex-col items-start flex-1 min-w-0">
+              <div className="flex justify-between w-full">
+                <span
+                  className={`truncate max-w-[65%] ${
+                    thread.unread
+                      ? "font-bold text-white"
+                      : "font-medium text-gray-200"
+                  }`}
+                >
+                  {parseFromName(thread.from)}
+                </span>
+                <span className="text-xs text-gray-500 shrink-0">
+                  {formatDate(thread.date)}
+                </span>
+              </div>
+              <span
+                className={`text-xs truncate w-full ${
+                  thread.unread ? "text-gray-200" : "text-gray-500"
+                }`}
+              >
+                {thread.snippet}
               </span>
             </div>
-            <span className="text-sm text-gray-300 truncate w-full">
-              {thread.subject}
-            </span>
-            <span className="text-xs text-gray-500 truncate w-full">
-              {thread.snippet}
-            </span>
+
+            {thread.unread && (
+              <span className="w-2.5 h-2.5 rounded-full bg-blue-500 shrink-0 ml-1" />
+            )}
           </button>
         ))}
       </div>

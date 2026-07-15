@@ -24,5 +24,7 @@ export default async function Home() {
     );
   }
 
-  return <ChatApp userEmail={session.user.email} />;
+  return (
+    <ChatApp userEmail={session.user.email} userImage={session.user.image} />
+  );
 }

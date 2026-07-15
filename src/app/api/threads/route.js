@@ -72,6 +72,7 @@ export async function GET() {
   for (const t of detailed) {
     const email = extractEmail(t.from);
     const existing = byContact.get(email);
+    const isUnread = t.labels.includes("UNREAD");
     if (!existing || new Date(t.date) > new Date(existing.date)) {
       byContact.set(email, {
         email,
@@ -80,12 +81,14 @@ export async function GET() {
         snippet: t.snippet,
         date: t.date,
         labels: t.labels,
+        unread: existing ? existing.unread || isUnread : isUnread,
         threadIds: existing
           ? [...existing.threadIds, t.threadId]
           : [t.threadId],
       });
     } else {
       existing.threadIds.push(t.threadId);
+      if (isUnread) existing.unread = true;
     }
   }
 
