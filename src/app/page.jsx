@@ -6,7 +6,7 @@ export default async function Home() {
 
   if (!session) {
     return (
-      <main className="flex h-screen items-center justify-center bg-black">
+      <main className="flex h-screen items-center justify-center bg-[#1E1E1E]">
         <form
           action={async () => {
             "use server";

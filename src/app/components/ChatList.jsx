@@ -117,22 +117,22 @@ const ChatList = forwardRef(function ChatList(
 
   return (
     <div className="flex flex-col h-full">
-      <div className="p-3 border-b border-gray-800 flex flex-col gap-2">
+      <div className="pb-2.5 flex flex-col gap-2">
         <input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search chats..."
-          className="bg-gray-900 rounded-full px-4 py-2 text-sm outline-none"
+          className="bg-[#1E1E1E] rounded-lg px-4 py-2 text-sm outline-none border border-[#343434]"
         />
         <div className="flex gap-1 overflow-x-auto">
           {TABS.map((tab) => (
             <button
               key={tab.key}
               onClick={() => setActiveTab(tab.key)}
-              className={`px-3 py-1 rounded-full text-xs font-medium transition shrink-0 ${
+              className={`px-3 py-1.5 rounded-full cursor-pointer text-xs font-medium transition shrink-0 ${
                 activeTab === tab.key
-                  ? "bg-blue-600 text-white"
-                  : "bg-gray-900 text-gray-400 hover:bg-gray-800"
+                  ? "bg-[#003628] border border-[#1B4A3E] text-[#D0FED0]"
+                  : "bg-[#1E1E1E] border border-[#343434] text-[#959393]"
               }`}
             >
               {tab.label}
@@ -141,7 +141,7 @@ const ChatList = forwardRef(function ChatList(
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex flex-col gap-1.5 flex-1 overflow-y-auto my-2.5">
         {filtered.length === 0 && (
           <div className="p-4 text-gray-500 text-sm">No chats match.</div>
         )}
@@ -149,8 +149,8 @@ const ChatList = forwardRef(function ChatList(
           <button
             key={thread.email}
             onClick={() => handleSelect(thread)}
-            className={`flex items-center gap-3 cursor-pointer text-left px-4 py-3 border-b border-gray-800 hover:bg-gray-900 transition w-full ${
-              selectedId === thread.email ? "bg-gray-900" : ""
+            className={`flex items-center p-3 gap-3 cursor-pointer text-left transition rounded-lg w-full ${
+              selectedId === thread.email ? "bg-[#353535]" : ""
             }`}
           >
             <Avatar
@@ -164,19 +164,19 @@ const ChatList = forwardRef(function ChatList(
                 <span
                   className={`truncate max-w-[65%] ${
                     thread.unread
-                      ? "font-bold text-white"
-                      : "font-medium text-gray-200"
+                      ? "font-bold text-[#FAFAFA]"
+                      : "font-medium text-[#FAFAFA]"
                   }`}
                 >
                   {parseFromName(thread.from)}
                 </span>
-                <span className="text-xs text-gray-500 shrink-0">
+                <span className="text-xs text-[#959393] shrink-0">
                   {formatDate(thread.date)}
                 </span>
               </div>
               <span
                 className={`text-xs truncate w-full ${
-                  thread.unread ? "text-gray-200" : "text-gray-500"
+                  thread.unread ? "text-[#959393]" : "text-[#959393]"
                 }`}
               >
                 {thread.snippet}
@@ -184,7 +184,7 @@ const ChatList = forwardRef(function ChatList(
             </div>
 
             {thread.unread && (
-              <span className="w-2.5 h-2.5 rounded-full bg-blue-500 shrink-0 ml-1" />
+              <span className="w-2.5 h-2.5 rounded-full bg-[#00AC59] shrink-0 ml-1" />
             )}
           </button>
         ))}

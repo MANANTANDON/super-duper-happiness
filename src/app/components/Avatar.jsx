@@ -14,7 +14,6 @@ function getAvatarColor(name) {
     "bg-emerald-600",
     "bg-teal-600",
     "bg-sky-600",
-    "bg-indigo-600",
     "bg-violet-600",
     "bg-pink-600",
   ];

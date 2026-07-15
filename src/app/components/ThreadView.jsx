@@ -114,7 +114,7 @@ export default function ThreadView({
 
   if (!contact) {
     return (
-      <div className="h-full flex items-center justify-center text-gray-500">
+      <div className="h-full flex items-center justify-center text-gray-500 w-full">
         Select a chat to view messages
       </div>
     );
@@ -122,7 +122,7 @@ export default function ThreadView({
 
   if (loading) {
     return (
-      <div className="h-full flex items-center justify-center text-gray-500">
+      <div className="h-full flex items-center justify-center text-gray-500 w-full">
         Loading...
       </div>
     );
@@ -133,7 +133,7 @@ export default function ThreadView({
 
   return (
     <div className="h-full w-full flex flex-col min-w-0 max-w-full overflow-hidden">
-      <div className="h-16 shrink-0 px-4 flex items-center gap-3 border-b border-gray-800">
+      <div className="h-16 shrink-0 px-4 flex items-center gap-3 border-b border-[#3B3B3B]">
         <button onClick={onBack} className="md:hidden text-gray-400 shrink-0">
           ←
         </button>
@@ -143,7 +143,7 @@ export default function ThreadView({
           <span className="font-semibold text-sm truncate leading-tight">
             {contactName}
           </span>
-          <span className="text-xs text-gray-500 truncate leading-tight">
+          <span className="text-xs text-[#959393] truncate leading-tight">
             {contactEmail}
           </span>
         </div>
@@ -158,8 +158,8 @@ export default function ThreadView({
                 key={msg.id}
                 className={`max-w-[85%] sm:max-w-[70%] px-4 py-2 rounded-2xl whitespace-pre-wrap wrap-break-word text-sm ${
                   fromMe
-                    ? "self-end ml-auto bg-blue-600 text-white"
-                    : "self-start bg-gray-800 text-white"
+                    ? "self-end ml-auto bg-[#004E36] text-white"
+                    : "self-start bg-[#242626] text-white"
                 }`}
                 style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}
               >
@@ -177,17 +177,17 @@ export default function ThreadView({
         </div>
       </div>
 
-      <div className="h-16 shrink-0 px-3 flex items-center gap-2 border-t border-gray-800">
+      <div className="h-16 shrink-0 px-3 flex items-center gap-2 bg-[#0F0F0F] ">
         <input
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && handleSend()}
           placeholder="Type a message..."
-          className="flex-1 min-w-0 bg-gray-900 rounded-full px-4 py-2 text-sm outline-none"
+          className="flex-1 min-w-0 bg-[#272727] rounded-full px-4 py-2 text-sm outline-none"
         />
         <button
           onClick={handleSend}
-          className="bg-blue-600 rounded-full px-5 py-2 text-sm font-medium shrink-0"
+          className="bg-[#004E36] rounded-full px-5 py-2 text-sm font-medium shrink-0"
         >
           Send
         </button>
