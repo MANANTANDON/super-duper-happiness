@@ -17,12 +17,12 @@ export default function ChatApp({ userEmail, userImage }) {
         }`}
       >
         <div className="px-2.5 pt-2.5 pb-5 flex items-center justify-between">
-          <h2 className="text-xl font-semibold">Mails</h2>
+          <h2 className="text-xl font-semibold">MailChat</h2>
           <button
             onClick={() => signOut()}
-            className="text-xs text-[#959393] shrink-0 cursor-pointer"
+            className="text-xs text-[#959393] shrink-0 cursor-pointer hover:bg-[#3A3C3C] px-2 py-2 rounded-lg"
           >
-            Sign out
+            􀻵
           </button>
         </div>
         <div className="flex-1 min-h-0 px-2.5">

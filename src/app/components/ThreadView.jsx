@@ -187,9 +187,9 @@ export default function ThreadView({
         />
         <button
           onClick={handleSend}
-          className="bg-[#004E36] rounded-full px-5 py-2 text-sm font-medium shrink-0"
+          className="bg-[#004E36] rounded-full px-2.5 py-2 text-sm font-medium shrink-0 hover:bg-[#004E3690] cursor-pointer"
         >
-          Send
+          􀈠
         </button>
       </div>
     </div>
