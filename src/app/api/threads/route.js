@@ -25,7 +25,7 @@ export async function GET() {
   const myEmail = session.user.email;
 
   const listRes = await fetch(
-    "https://gmail.googleapis.com/gmail/v1/users/me/threads?maxResults=25",
+    "https://gmail.googleapis.com/gmail/v1/users/me/threads?maxResults=50",
     { headers: { Authorization: `Bearer ${session.accessToken}` } },
   );
   const listData = await listRes.json();

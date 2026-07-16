@@ -17,13 +17,34 @@ export default function ThreadView({
   myEmail,
   onMessageSent,
   onBack,
+  onDeleted,
 }) {
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(true);
   const [draft, setDraft] = useState("");
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     if (!contact) return;
+
+    let interval;
+
+    function startPolling() {
+      interval = setInterval(loadMessages, 120000); // 2 minutes
+    }
+
+    function stopPolling() {
+      clearInterval(interval);
+    }
+
+    function handleVisibilityChange() {
+      if (document.hidden) {
+        stopPolling();
+      } else {
+        loadMessages(); // catch up immediately when tab becomes active again
+        startPolling();
+      }
+    }
 
     async function loadMessages() {
       try {
@@ -48,15 +69,23 @@ export default function ThreadView({
     setLoading(true);
     loadMessages();
 
-    // Tell Gmail to actually mark these threads as read (not just locally)
     fetch("/api/contact/markRead", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ threadIds: contact.threadIds }),
     }).catch(() => {});
 
-    const interval = setInterval(loadMessages, 8000);
-    return () => clearInterval(interval);
+    startPolling();
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      stopPolling();
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [contact]);
+
+  useEffect(() => {
+    setDeleting(false);
   }, [contact]);
 
   async function handleSend() {
@@ -112,6 +141,27 @@ export default function ThreadView({
     }
   }
 
+  async function handleDelete() {
+    const confirmed = window.confirm(
+      `Delete conversation with ${contactName}? This moves it to Gmail Trash.`,
+    );
+    if (!confirmed) return;
+
+    setDeleting(true);
+    try {
+      const res = await fetch("/api/contact/delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ threadIds: contact.threadIds }),
+      });
+      if (!res.ok) throw new Error("delete failed");
+      onDeleted?.(); // parent deselects contact — component will re-render with contact=null
+    } catch (err) {
+      alert("Failed to delete conversation.");
+      setDeleting(false); // only reset here currently — the bug
+    }
+  }
+
   if (!contact) {
     return (
       <div className="h-full flex items-center justify-center text-gray-500 w-full">
@@ -133,20 +183,29 @@ export default function ThreadView({
 
   return (
     <div className="h-full w-full flex flex-col min-w-0 max-w-full overflow-hidden">
-      <div className="h-16 shrink-0 px-4 flex items-center gap-3 border-b border-[#3B3B3B]">
+      <div className="h-16 shrink-0 px-4 flex items-center gap-3 border-b border-gray-800">
         <button onClick={onBack} className="md:hidden text-gray-400 shrink-0">
           ←
         </button>
         <Avatar email={contactEmail} name={contactName} size={36} />
 
-        <div className="min-w-0 flex flex-col justify-center">
+        <div className="min-w-0 flex flex-col justify-center flex-1">
           <span className="font-semibold text-sm truncate leading-tight">
             {contactName}
           </span>
-          <span className="text-xs text-[#959393] truncate leading-tight">
+          <span className="text-xs text-gray-500 truncate leading-tight">
             {contactEmail}
           </span>
         </div>
+
+        <button
+          onClick={handleDelete}
+          disabled={deleting}
+          className="text-gray-400 hover:text-red-500 shrink-0 disabled:opacity-50 px-2 py-1 cursor-pointer rounded-md hover:bg-zinc-100/10"
+          title="Delete conversation"
+        >
+          {deleting ? "..." : "􀈑"}
+        </button>
       </div>
 
       <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden">

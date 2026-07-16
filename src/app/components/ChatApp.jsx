@@ -44,6 +44,10 @@ export default function ChatApp({ userEmail, userImage }) {
           myEmail={userEmail}
           onBack={() => setSelectedContact(null)}
           onMessageSent={() => chatListRef.current?.refresh()}
+          onDeleted={() => {
+            setSelectedContact(null);
+            chatListRef.current?.refresh();
+          }}
         />
       </div>
     </div>

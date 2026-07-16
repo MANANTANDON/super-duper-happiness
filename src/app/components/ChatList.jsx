@@ -84,9 +84,33 @@ const ChatList = forwardRef(function ChatList(
   }));
 
   useEffect(() => {
+    let interval;
+
+    function startPolling() {
+      interval = setInterval(fetchThreads, 120000); // 2 minutes
+    }
+
+    function stopPolling() {
+      clearInterval(interval);
+    }
+
+    function handleVisibilityChange() {
+      if (document.hidden) {
+        stopPolling();
+      } else {
+        fetchThreads();
+        startPolling();
+      }
+    }
+
     fetchThreads();
-    const interval = setInterval(fetchThreads, 15000);
-    return () => clearInterval(interval);
+    startPolling();
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      stopPolling();
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
   }, [fetchThreads]);
 
   function handleSelect(thread) {
